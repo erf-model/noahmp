@@ -25,11 +25,26 @@ if("${CMAKE_Fortran_COMPILER_ID}" MATCHES "GNU")
     target_compile_options(noahmp PRIVATE "-ffree-line-length-none")
 endif()
 
-target_include_directories(noahmp PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
-target_include_directories(noahmp PRIVATE $<BUILD_INTERFACE:${NETCDF_INCLUDES}>)
-target_link_libraries(noahmp PRIVATE ${NETCDF_LIBRARIES_F90})
-target_link_libraries(noahmp PUBLIC gfortran)
-target_include_directories(noahmp INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
+target_link_libraries(noahmp
+    PUBLIC
+        NetCDF::NetCDF_Fortran
+    PRIVATE
+        gfortran
+)
+
+# Your other includes
+target_include_directories(noahmp
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    INTERFACE
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+)
+
+#target_include_directories(noahmp PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
+#target_include_directories(noahmp PRIVATE $<BUILD_INTERFACE:${NETCDF_INCLUDE_DIRS}>)
+#target_link_libraries(noahmp PRIVATE ${NETCDF_LIBRARIES_F90})
+#target_link_libraries(noahmp PUBLIC gfortran)
+#target_include_directories(noahmp INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
 
 # Install the library and export the target
 install(TARGETS noahmp
