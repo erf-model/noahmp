@@ -1,5 +1,59 @@
 # Noah-MP model release notes
 
+## Noah-MP version 5.2.0 release
+
+### LSM capabilities/enhancements
+
+- none
+
+
+### Driver capabilities/enhancements
+
+- New driver interface for coupling with WRF
+- New urban driver interface for SLUCM urban tree schemes in WRF
+
+
+### LSM bug fixes
+
+- None
+
+### Driver bug fixes
+
+- None
+
+
+### External modules capabilities/enhancements
+
+- None
+
+
+## Noah-MP version 5.1.1 release
+
+### LSM capabilities/enhancements
+
+- none
+
+
+### Driver capabilities/enhancements
+
+- improved driver interface with DOE's ERF model for Multi-Level AMR, Radiation, and Misc. (https://github.com/NCAR/noahmp/pull/201)
+
+
+### LSM bug fixes
+
+- bug fixes and code formatting improvement related to CBIOM, soil depth, snow liquid water, urban, and crop (https://github.com/NCAR/noahmp/pull/219)
+- bug fix for reference height diagnosis (https://github.com/NCAR/noahmp/pull/207)
+
+### Driver bug fixes
+
+- None
+
+
+### External modules capabilities/enhancements
+
+- None
+
+
 ## Noah-MP version 5.1.0 release
 
 ### LSM capabilities/enhancements
@@ -15,7 +69,7 @@
 ### Driver capabilities/enhancements
 
 - coupling Noah-MP v5.0 with NASA Land Information System (LIS) through GitHub submodule with new LIS/NoahMP driver interface (https://github.com/NCAR/noahmp/pull/170)
-- coupling Noah-MP v5.1.0 with DOE's Environmental Research Forecast (ERF) model through GitHub submodule with new ERF/NoahMP driver interface (https://github.com/NCAR/noahmp/pull/178)
+- coupling Noah-MP v5.1.0 with DOE's Energy Research and Forecasting (ERF) model through GitHub submodule with new ERF/NoahMP driver interface (https://github.com/NCAR/noahmp/pull/178)
 
 
 ### LSM bug fixes
