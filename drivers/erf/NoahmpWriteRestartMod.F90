@@ -69,7 +69,7 @@ contains
       integer :: ierr, start(2), count(2)
       integer :: nx, ny, nsoil_d, nsnow_d, nsnso_d, nrad_d
       integer :: rtype
-      character(len=1)   :: lev_str
+      character(len=32)  :: lev_str  ! wide enough to avoid overflow for large level counts
       character(len=512) :: filename
       logical :: ex
 
@@ -78,7 +78,7 @@ contains
       if (kind_noahmp == 8) rtype = NF90_DOUBLE
 
       if (NoahmpIO%blkid == 0) then
-         write (lev_str, '(I1.1)') NoahmpIO%LEVEL
+         write (lev_str, '(I0)') NoahmpIO%LEVEL
 
          inquire (file=trim(dir), exist=ex)
          if (.not. ex) then
