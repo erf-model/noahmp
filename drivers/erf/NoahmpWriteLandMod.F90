@@ -31,14 +31,14 @@ contains
       ! local variables
       integer :: ierr, start(2), count(2), nx, ny, comp2d, nsoil
       character(len=32) :: ts_str   ! wide enough to avoid overflow for large step counts
-      character(len=1) :: lev_str
+      character(len=32) :: lev_str  ! wide enough to avoid overflow for large level counts
       character(len=100) :: dir, filename
       logical :: ex
 
       if (NoahmpIO%blkid == 0) then
          write (ts_str, '(I12.5)') filenum   ! zero-pad to >=5 digits, grows for larger counts
          ts_str = adjustl(ts_str)            ! drop leading blanks, keep leading zeros
-         write (lev_str, '(I1.1)') NoahmpIO%LEVEL
+         write (lev_str, '(I0)') NoahmpIO%LEVEL
 
          dir = "lnd"//trim(ts_str)
          inquire (file=trim(dir), exist=ex)

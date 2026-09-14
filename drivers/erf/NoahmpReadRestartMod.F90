@@ -27,11 +27,11 @@ contains
 
       integer :: ierr, start(2), count(2)
       integer :: file_nsoil, file_nsnow
-      character(len=1)   :: lev_str
+      character(len=32)  :: lev_str  ! wide enough to avoid overflow for large level counts
       character(len=512) :: filename
 
       if (NoahmpIO%blkid == 0) then
-         write (lev_str, '(I1.1)') NoahmpIO%LEVEL
+         write (lev_str, '(I0)') NoahmpIO%LEVEL
          filename = trim(dir)//"/Level_"//trim(lev_str)//".nc"
 
          ierr = nf90_open(trim(filename), IOR(NF90_NOWRITE, NF90_MPIIO), &
