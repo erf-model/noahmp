@@ -5,7 +5,7 @@
 ! The restart writer/reader serialize the FULL prognostic state to a per-level
 ! NetCDF-4 file using collective parallel I/O (NF90_MPIIO, comm=NoahmpIO%comm),
 ! at working precision (NF90_DOUBLE when kind_noahmp==8, else NF90_REAL) so a
-! restart reproduces a cold run bitwise (see dev/spec-io-restart.md).
+! restart reproduces a cold run bitwise.
 !
 ! The program creates its own MPI world (tio_mpi_init -> MPI_COMM_WORLD) and
 ! runs single-rank, so one block's hyperslab covers the whole global domain.

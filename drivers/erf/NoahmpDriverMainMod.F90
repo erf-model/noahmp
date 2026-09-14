@@ -20,8 +20,13 @@ module NoahmpDriverMainMod
   use BiochemVarOutTransferMod
   use NoahmpMainMod
   use NoahmpMainGlacierMod
+  use NoahmpFatalMod, only: NoahmpIO_abort
 
   implicit none
+
+  ! Days per month, non-leap. Shared so CAL_MON_DAY and NoahmpCalendarAdvance cannot
+  ! drift; February is adjusted per-call against NoahmpYearLength, never in place.
+  integer, parameter, private :: MONTH_DAYS(12) = (/31,28,31,30,31,30,31,31,30,31,30,31/)
   
 contains  
 
@@ -40,7 +45,9 @@ contains
     integer                             :: J
     integer                             :: K
     integer                             :: JMONTH, JDAY
+    integer                             :: CAL_YR
     real(kind=kind_noahmp)              :: SOLAR_TIME
+    real(kind=kind_noahmp)              :: CAL_JULIAN
 
       ! ERF provides one atmospheric level; WRF physics expects two -- duplicate layer 1 into layer 2.
       NoahmpIO%P8W(:, 2, :) = NoahmpIO%P8W(:, 1, :)
@@ -109,17 +116,26 @@ contains
 
     !  Prepare Noah-MP driver
 
-    ! find length of year for phenology (also S Hemisphere)
-    NoahmpIO%YEARLEN = 365
-    if (mod(NoahmpIO%YR,4) == 0)then
-       NoahmpIO%YEARLEN = 366
-       if (mod(NoahmpIO%YR,100) == 0)then
-          NoahmpIO%YEARLEN = 365
-          if (mod(NoahmpIO%YR,400) == 0)then
-             NoahmpIO%YEARLEN = 366
-          endif
-       endif
+    ! Wall-clock date of this call: the namelist start date advanced by the elapsed
+    ! model time. ITIMESTEP is 1-based, so firing i sits at (i-1)*DTBL seconds.
+    call NoahmpCalendarAdvance(NoahmpIO, real(NoahmpIO%ITIMESTEP-1, kind=kind_noahmp) * NoahmpIO%DTBL, &
+                               CAL_YR, CAL_JULIAN)
+    NoahmpIO%YR     = CAL_YR
+    NoahmpIO%JULIAN = CAL_JULIAN
+
+    ! Announce the clock once. Nothing cross-checks this against the host's own start
+    ! date, so print it where a mismatch with erf.start_datetime is visible in the log.
+    if ( (NoahmpIO%ITIMESTEP == 1) .and. (NoahmpIO%rank == 0) ) then
+       write(*,'(" ***** Noah-MP calendar start (from namelist.erf): ",              &
+                 &I0,"-",I2.2,"-",I2.2," ",I2.2,":",I2.2," UTC")')                   &
+             NoahmpIO%start_year, NoahmpIO%start_month, NoahmpIO%start_day,          &
+             max(NoahmpIO%start_hour, 0), max(NoahmpIO%start_min, 0)
+       write(*,'(" ***** Noah-MP: this must match the host start date",              &
+                 &" (ERF: erf.start_datetime / SIMULATION_START_DATE).")')
     endif
+
+    ! find length of year for phenology (also S Hemisphere)
+    NoahmpIO%YEARLEN = NoahmpYearLength(NoahmpIO%YR)
 
     ! depth to soil interfaces (<0) [m]
     NoahmpIO%ZSOIL(1) = -NoahmpIO%DZS(1)
@@ -133,7 +149,8 @@ contains
        if ( NoahmpIO%ITIMESTEP == 1 ) then
           do I = NoahmpIO%ITS, NoahmpIO%ITE
              if ( (NoahmpIO%XLAND(I,J)-1.5) >= 0.0 ) then  ! Open water point
-                if ( NoahmpIO%XICE(I,J) == 1.0 ) print*,' sea-ice at water point, I=',I,'J=',J
+                if ( (NoahmpIO%XICE(I,J) == 1.0) .and. (NoahmpIO%rank == 0) )                &
+                   write(*,'(" ***** Noah-MP: sea-ice at water point, I=",I0," J=",I0)') I, J
                 NoahmpIO%SMSTAV(I,J) = 1.0
                 NoahmpIO%SMSTOT(I,J) = 1.0
                 do K = 1, NoahmpIO%NSOIL
@@ -162,6 +179,10 @@ contains
              cycle ILOOP                                             ! Skip any sea-ice points
           else
              if ( (NoahmpIO%XLAND(I,J)-1.5) >= 0.0 ) cycle ILOOP     ! Skip any open water points
+
+             ! ICE is a scalar carried across iterations, so without this a land point
+             ! after a sea-ice point inherits ICE=1 (and the first sees undefined_int).
+             NoahmpIO%ICE = 0                                        ! Non-ice land point
 
              !  Initialize data types and transfer inputs from 2-D to 1-D column variables
              call ConfigVarInitDefault  (noahmp)
@@ -225,18 +246,15 @@ contains
       IMPLICIT NONE
       INTEGER, INTENT(IN) :: JULDAY, julyr
       INTEGER, INTENT(OUT) :: Jmonth, Jday
-      LOGICAL :: LEAP, NOT_FIND_DATE
-      INTEGER :: MONTH(12), itmpday, itmpmon, i
-      DATA MONTH/31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31/
+      LOGICAL :: NOT_FIND_DATE
+      INTEGER :: MONTH(12), itmpday, i
       NOT_FIND_DATE = .true.
 
+      ! Re-seed every call: a DATA-initialized MONTH is implicitly SAVEd, so one
+      ! leap-year call used to leave MONTH(2)=29 set for the rest of the run.
+      MONTH   = MONTH_DAYS
       itmpday = JULDAY
-      itmpmon = 1
-      LEAP = .FALSE.
-      IF (MOD(julyr, 4) .EQ. 0) THEN
-         MONTH(2) = 29
-         LEAP = .TRUE.
-      END IF
+      IF (NoahmpYearLength(julyr) .EQ. 366) MONTH(2) = 29
 
       do i = 1, 12
          IF (itmpday .GT. MONTH(i)) THEN
@@ -248,8 +266,114 @@ contains
             exit
          END IF
       end do
-      if (NOT_FIND_DATE) stop "CAL_MON_DAY: day-of-year out of valid range (1..YEARLEN)"
+      if (NOT_FIND_DATE) then
+         write(*,'(" ***** CAL_MON_DAY: day-of-year ",I0," out of range 1..",I0,          &
+                   &" for year ",I0)') JULDAY, NoahmpYearLength(julyr), julyr
+         call NoahmpIO_abort()
+      endif
 
    end subroutine CAL_MON_DAY
+
+   ! ---------------------------------------------------------------------------
+   !  Calendar. The host owns ITIMESTEP; the wall-clock date follows from the
+   !  namelist start date plus the elapsed model time. Before this existed, YR and
+   !  JULIAN sat frozen at their NoahmpIOVarInitMod defaults (2000, Jan 1) for the
+   !  whole run, silently pinning phenology and the urban irrigation window.
+   ! ---------------------------------------------------------------------------
+
+   ! Days in a year, proleptic Gregorian.
+   pure integer function NoahmpYearLength(year) result(ylen)
+
+      implicit none
+      integer, intent(in) :: year
+
+      ylen = 365
+      if (mod(year,4) == 0) then
+         ylen = 366
+         if (mod(year,100) == 0) then
+            ylen = 365
+            if (mod(year,400) == 0) ylen = 366
+         endif
+      endif
+
+   end function NoahmpYearLength
+
+   ! Advance the namelist start date by elapsed_sec. Returns the calendar year and
+   ! the 1-based day-of-year carrying the fraction of the day (Jan 1 00Z -> 1.0),
+   ! which is the form NoahmpIO%JULIAN is consumed in (DayJulianInYear, SOLAR_TIME,
+   ! CAL_MON_DAY). NoahmpIO is read-only here: the caller assigns the results, so
+   ! YR/JULIAN are never aliased against the intent(in) dummy.
+   subroutine NoahmpCalendarAdvance(NoahmpIO, elapsed_sec, YR, JULIAN)
+
+      implicit none
+      type(NoahmpIO_type),    intent(in)  :: NoahmpIO
+      real(kind=kind_noahmp), intent(in)  :: elapsed_sec   ! since the start date [s]
+      integer,                intent(out) :: YR            ! 4-digit calendar year
+      real(kind=kind_noahmp), intent(out) :: JULIAN        ! day-of-year + day fraction
+
+      integer, parameter     :: i8 = selected_int_kind(18)
+      integer                :: hh, mm, imon, doy, ylen, dmon
+      integer(kind=i8)       :: isec, sec_of_year, sec_in_year
+      real(kind=kind_noahmp) :: fsec
+
+      ! Only start_year/month/day are mandatory in namelist.erf, so an unset
+      ! hour/minute means midnight rather than the -9999 sentinel.
+      hh = NoahmpIO%start_hour
+      mm = NoahmpIO%start_min
+      if (hh == undefined_int) hh = 0
+      if (mm == undefined_int) mm = 0
+
+      YR   = NoahmpIO%start_year
+      ylen = NoahmpYearLength(YR)
+
+      dmon = 0
+      if ( (NoahmpIO%start_month >= 1) .and. (NoahmpIO%start_month <= 12) ) then
+         dmon = MONTH_DAYS(NoahmpIO%start_month)
+         if ( (NoahmpIO%start_month == 2) .and. (ylen == 366) ) dmon = 29
+      endif
+
+      if ( (YR <= 0) .or. (NoahmpIO%start_month < 1) .or. (NoahmpIO%start_month > 12) .or. &
+           (NoahmpIO%start_day < 1) .or. (NoahmpIO%start_day > dmon) .or.                  &
+           (hh < 0) .or. (hh > 23) .or. (mm < 0) .or. (mm > 59) ) then
+         if (NoahmpIO%rank == 0) then
+            write(*,'(" ***** Noah-MP: namelist.erf start date is not a valid date: ",     &
+                      &"year=",I0," month=",I0," day=",I0," hour=",I0," min=",I0)')        &
+                  NoahmpIO%start_year, NoahmpIO%start_month, NoahmpIO%start_day, hh, mm
+         endif
+         call NoahmpIO_abort()
+      endif
+
+      ! Day-of-year of the start date (1-based).
+      doy = NoahmpIO%start_day
+      do imon = 1, NoahmpIO%start_month - 1
+         if ( (imon == 2) .and. (ylen == 366) ) then
+            doy = doy + 29
+         else
+            doy = doy + MONTH_DAYS(imon)
+         endif
+      end do
+
+      ! Carry the rollover in whole seconds so it stays exact in a single-precision
+      ! build; only the sub-second remainder goes through the real accumulator.
+      isec        = floor(elapsed_sec, kind=i8)
+      fsec        = elapsed_sec - real(isec, kind=kind_noahmp)
+      sec_of_year = int(doy-1,i8)*86400_i8 + int(hh,i8)*3600_i8 + int(mm,i8)*60_i8 + isec
+
+      do
+         sec_in_year = int(NoahmpYearLength(YR),i8) * 86400_i8
+         if (sec_of_year < sec_in_year) exit
+         sec_of_year = sec_of_year - sec_in_year
+         YR = YR + 1
+      end do
+      do while (sec_of_year < 0_i8)
+         YR = YR - 1
+         sec_of_year = sec_of_year + int(NoahmpYearLength(YR),i8)*86400_i8
+      end do
+
+      JULIAN = 1.0_kind_noahmp                                       &
+             + (real(sec_of_year, kind=kind_noahmp) + fsec)          &
+               / 86400.0_kind_noahmp
+
+   end subroutine NoahmpCalendarAdvance
 
 end module NoahmpDriverMainMod  

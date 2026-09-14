@@ -3,8 +3,7 @@
 Fast, dependency-free tests that link the built `noahmp` library and exercise
 the C++ ↔ Fortran coupling boundary through **both** interfaces. Plain CTest with
 a tiny assert helper (`test_util.H`) — no GoogleTest, matching the repo's
-minimal-dependency style. See `../dev/spec-overview.md` and `../dev/spec-fc-api.md`
-for the machinery under test.
+minimal-dependency style.
 
 ## Running
 
