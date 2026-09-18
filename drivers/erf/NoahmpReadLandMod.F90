@@ -30,6 +30,7 @@ subroutine NoahmpReadLandHeader(NoahmpIO)
     integer :: ncid, dimid, varid, ierr
     real(kind_noahmp), allocatable, dimension(:,:) :: dum2d  ! scratch to extract lat1/lon1 scalars
     character(len=256) :: units
+    character(len=256) :: start_date
     integer :: i
     integer :: rank
     integer :: ilev, is, js, ratio, xoffset, yoffset
@@ -88,6 +89,36 @@ subroutine NoahmpReadLandHeader(NoahmpIO)
 
     ierr = nf90_get_att(ncid, NF90_GLOBAL, "MMINLU", NoahmpIO%llanduse)
     call error_handler(ierr, "READ_ERF_HDRINFO:  Problems finding global attribute 'MMINLU'")
+
+    start_date = " "
+    ierr = nf90_get_att(ncid, NF90_GLOBAL, "SIMULATION_START_DATE", start_date)
+    call error_handler(ierr, "READ_ERF_HDRINFO:  Problems finding global attribute 'SIMULATION_START_DATE'")
+
+    ! Accept either the WRF underscore form YYYY-MM-DD_HH:MM:SS or the spaced
+    ! form YYYY-MM-DD HH:MM:SS, and extract the fields Noah-MP's calendar uses.
+    if (start_date(11:11) == "_") start_date(11:11) = " "
+    if (len_trim(start_date) < 16) then
+       if (NoahmpIO%rank == 0) write(*,'(" ***** READ_ERF_HDRINFO: invalid SIMULATION_START_DATE: ",A)') trim(start_date)
+       call NoahmpIO_abort()
+    endif
+    read(start_date(1:4),  '(I4)', iostat=ierr) NoahmpIO%start_year
+    if (ierr /= 0) call error_handler(ierr, "READ_ERF_HDRINFO: invalid SIMULATION_START_DATE year")
+    read(start_date(6:7),  '(I2)', iostat=ierr) NoahmpIO%start_month
+    if (ierr /= 0) call error_handler(ierr, "READ_ERF_HDRINFO: invalid SIMULATION_START_DATE month")
+    read(start_date(9:10), '(I2)', iostat=ierr) NoahmpIO%start_day
+    if (ierr /= 0) call error_handler(ierr, "READ_ERF_HDRINFO: invalid SIMULATION_START_DATE day")
+    read(start_date(12:13),'(I2)', iostat=ierr) NoahmpIO%start_hour
+    if (ierr /= 0) call error_handler(ierr, "READ_ERF_HDRINFO: invalid SIMULATION_START_DATE hour")
+    read(start_date(15:16),'(I2)', iostat=ierr) NoahmpIO%start_min
+    if (ierr /= 0) call error_handler(ierr, "READ_ERF_HDRINFO: invalid SIMULATION_START_DATE minute")
+
+    if (NoahmpIO%start_month < 1 .or. NoahmpIO%start_month > 12 .or. &
+        NoahmpIO%start_day   < 1 .or. NoahmpIO%start_day   > 31 .or. &
+        NoahmpIO%start_hour  < 0 .or. NoahmpIO%start_hour  > 23 .or. &
+        NoahmpIO%start_min   < 0 .or. NoahmpIO%start_min   > 59) then
+       if (NoahmpIO%rank == 0) write(*,'(" ***** READ_ERF_HDRINFO: invalid SIMULATION_START_DATE fields: ",A)') trim(start_date)
+       call NoahmpIO_abort()
+    endif
     
     ! IBM XLF seems to need something like this:
     do i = 1, 256

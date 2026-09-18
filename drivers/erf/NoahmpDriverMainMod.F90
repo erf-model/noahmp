@@ -123,15 +123,13 @@ contains
     NoahmpIO%YR     = CAL_YR
     NoahmpIO%JULIAN = CAL_JULIAN
 
-    ! Announce the clock once. Nothing cross-checks this against the host's own start
-    ! date, so print it where a mismatch with erf.start_datetime is visible in the log.
+    ! Announce the clock once. In the ERF driver the calendar start now comes
+    ! directly from the wrfinput/WPS file header.
     if ( (NoahmpIO%ITIMESTEP == 1) .and. (NoahmpIO%rank == 0) ) then
-       write(*,'(" ***** Noah-MP calendar start (from namelist.erf): ",              &
+       write(*,'(" ***** Noah-MP calendar start (from wrfinput/WPS file): ",       &
                  &I0,"-",I2.2,"-",I2.2," ",I2.2,":",I2.2," UTC")')                   &
              NoahmpIO%start_year, NoahmpIO%start_month, NoahmpIO%start_day,          &
              max(NoahmpIO%start_hour, 0), max(NoahmpIO%start_min, 0)
-       write(*,'(" ***** Noah-MP: this must match the host start date",              &
-                 &" (ERF: erf.start_datetime / SIMULATION_START_DATE).")')
     endif
 
     ! find length of year for phenology (also S Hemisphere)

@@ -316,6 +316,7 @@ contains
     call ncchk(nf90_put_att(ncid, NF90_GLOBAL, "ISURBAN", 13), "att ISURBAN")
     call ncchk(nf90_put_att(ncid, NF90_GLOBAL, "ISICE", 15), "att ISICE")
     call ncchk(nf90_put_att(ncid, NF90_GLOBAL, "MMINLU", "MODIFIED_IGBP_MODIS_NOAH"), "att MMINLU")
+    call ncchk(nf90_put_att(ncid, NF90_GLOBAL, "SIMULATION_START_DATE", "2023-08-17_06:00:00"), "att SIM_START")
     ! Read from the level-0 setup file (same file here) to build x/y offsets.
     call ncchk(nf90_put_att(ncid, NF90_GLOBAL, "I_PARENT_START", 1), "att IPS")
     call ncchk(nf90_put_att(ncid, NF90_GLOBAL, "J_PARENT_START", 1), "att JPS")

@@ -28,11 +28,6 @@ contains
     integer                 :: NSOIL                 ! number of soil layers
     integer                 :: forcing_timestep         = -9999
     integer                 :: noah_timestep            = -9999
-    integer                 :: start_year               = -9999
-    integer                 :: start_month              = -9999
-    integer                 :: start_day                = -9999
-    integer                 :: start_hour               = -9999
-    integer                 :: start_min                = -9999
     character(len=256)      :: outdir = "."
     character(len=256)      :: restart_filename_requested = " "
     integer                 :: restart_frequency_hours  = 0
@@ -141,7 +136,6 @@ contains
          finemesh,finemesh_factor,forc_typ, snow_assim , GEO_STATIC_FLNM, HRLDAS_ini_typ, &
 #endif
          indir, nsoil, soil_thick_input, forcing_timestep, noah_timestep, soil_timestep,  &
-         start_year, start_month, start_day, start_hour, start_min,                       &
          outdir, skip_first_output, noahmp_output,                                        &
          restart_filename_requested, restart_frequency_hours, output_timestep,            &
          spinup_loops,                                                                    &
@@ -205,10 +199,8 @@ contains
     endif
     close(nu)
 
-    if (start_year < 0 .or. start_month < 0 .or. start_day < 0) then
-        if (NoahmpIO%rank == 0) write(*,'(" ***** Namelist error: start_year, start_month, start_day must be set.")')
-        call NoahmpIO_abort()
-    endif
+    ! Noah-MP's calendar start now comes from the wrfinput/WPS file header read
+    ! in NoahmpReadLandHeader, not from namelist.erf START_* entries.
 
     ! Prefer an externally set ERF-coupled zlvl; otherwise fall back to the namelist
     ! value, but announce it -- an unstaged reference height means DZ8W=2*ZLVL no
@@ -237,6 +229,14 @@ contains
 
     if (nsoil < 1) then
         if (NoahmpIO%rank == 0) write(*,'(" ***** ERROR: NSOIL must be >= 1 in the namelist.")')
+        call NoahmpIO_abort()
+    endif
+
+    if (snow_albedo_option == 3) then
+        if (NoahmpIO%rank == 0) then
+            write(*,'(" ***** ERF does not currently support Noah-MP SNICAR snow albedo (SNOW_ALBEDO_OPTION=3).")')
+            write(*,'(" ***** Please use SNOW_ALBEDO_OPTION=1 (BATS) or SNOW_ALBEDO_OPTION=2 (CLASS).")')
+        end if
         call NoahmpIO_abort()
     endif
 
@@ -382,11 +382,6 @@ contains
     NoahmpIO%indir                             = indir
     NoahmpIO%forcing_timestep                  = forcing_timestep
     NoahmpIO%noah_timestep                     = noah_timestep
-    NoahmpIO%start_year                        = start_year
-    NoahmpIO%start_month                       = start_month
-    NoahmpIO%start_day                         = start_day
-    NoahmpIO%start_hour                        = start_hour
-    NoahmpIO%start_min                         = start_min
     NoahmpIO%outdir                            = outdir
     NoahmpIO%noahmp_output                     = noahmp_output
     NoahmpIO%restart_filename_requested        = restart_filename_requested
